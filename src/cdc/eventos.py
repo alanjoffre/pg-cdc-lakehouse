@@ -20,7 +20,7 @@ class Evento:
     chave: int
     op: str
     lsn: int
-    ts_ms: int
+    ts_ms: int          # hora do commit na origem (source.ts_ms): base da latência
     linha: dict[str, Any] | None   # estado da linha depois da mudança; None no delete
 
     @property
@@ -46,4 +46,4 @@ def de_debezium(chave: bytes | str | None, valor: bytes | str | None) -> Evento 
     else:
         raise ValueError("evento sem chave e sem linha de referência")
     return Evento(tabela=fonte["table"], chave=int(id_), op=op, lsn=int(fonte["lsn"]),
-                  ts_ms=int(env.get("ts_ms") or fonte.get("ts_ms") or 0), linha=linha)
+                  ts_ms=int(fonte.get("ts_ms") or env.get("ts_ms") or 0), linha=linha)
