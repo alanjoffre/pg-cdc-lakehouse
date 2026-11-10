@@ -1,0 +1,50 @@
+# Ambiente local do case: PostgreSQL (origem) -> Debezium (CDC) -> Kafka KRaft -> consumidor Python.
+# Memória limitada de propósito: o conjunto todo cabe em ~2 GB.
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"]
+    environment:
+      POSTGRES_DB: loja
+      POSTGRES_USER: cdc
+      POSTGRES_PASSWORD: cdc-local-somente   # ambiente descartável, só na máquina local
+    ports: ["55432:5432"]
+    volumes: ["./sql/esquema.sql:/docker-entrypoint-initdb.d/01-esquema.sql:ro"]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdc -d loja"]
+      interval: 5s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:4.3.2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNO://:9092,EXTERNO://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://kafka:9092,EXTERNO://localhost:59094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNO:PLAINTEXT,EXTERNO:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    ports: ["59094:9094"]
+    mem_limit: 768m
+
+  connect:
+    image: quay.io/debezium/connect:3.7.1.Final
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka: {condition: service_started}
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: cdc-connect
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_status
+      HEAP_OPTS: "-Xms256m -Xmx768m"
+    ports: ["58083:8083"]
+    mem_limit: 1g

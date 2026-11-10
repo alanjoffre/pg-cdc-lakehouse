@@ -1,0 +1,25 @@
+{
+  "name": "loja-postgres",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "plugin.name": "pgoutput",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "cdc",
+    "database.password": "cdc-local-somente",
+    "database.dbname": "loja",
+    "topic.prefix": "loja",
+    "publication.name": "cdc_loja",
+    "publication.autocreate.mode": "disabled",
+    "slot.name": "cdc_loja",
+    "table.include.list": "public.clientes,public.pedidos",
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "connect",
+    "tombstones.on.delete": "false",
+    "snapshot.mode": "initial",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}
