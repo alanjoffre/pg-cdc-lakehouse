@@ -3,7 +3,7 @@ import json
 
 import duckdb
 
-from cdc.destino import estado_atual, gravar_lote, nome_arquivo
+from cdc.destino import colisoes_de_identidade, estado_atual, gravar_lote, nome_arquivo
 from cdc.eventos import Evento, de_debezium
 from cdc.reconciliar import comparar
 
@@ -74,3 +74,26 @@ def test_reconciliar_acha_falta_sobra_e_divergencia():
     r = comparar("pedidos", origem, destino, cols)
     assert (r.faltando, r.sobrando, r.divergentes, r.ok) == ([3], [4], [2], False)
     assert comparar("pedidos", origem, list(reversed(origem)), cols).ok
+
+
+def test_apagar_e_reinserir_o_mesmo_id(tmp_path):
+    """Delete seguido de insert da mesma chave: vale a linha reinserida (maior LSN)."""
+    gravar_lote(tmp_path, [ev(1, "c", 10, valor="5"), ev(1, "d", 11),
+                           ev(1, "c", 12, valor="8")], "t", 0, 0, 2)
+    assert _estado(tmp_path) == [{"id": 1, "valor": "8"}]
+    # e o inverso: reinserido e apagado de novo some do destino
+    gravar_lote(tmp_path, [ev(1, "d", 13)], "t", 0, 3, 3)
+    assert _estado(tmp_path) == []
+
+
+def test_colisao_de_identidade_e_detectada(tmp_path):
+    """Duas mudanças diferentes com o mesmo (tabela, chave, lsn) seriam fundidas em silêncio."""
+    con = duckdb.connect()
+    try:
+        gravar_lote(tmp_path, [ev(1, "c", 10, valor="5")], "t", 0, 0, 0)
+        gravar_lote(tmp_path, [ev(1, "c", 10, valor="5")], "t", 0, 1, 1)   # repetido: ok
+        assert colisoes_de_identidade(con, tmp_path) == 0
+        gravar_lote(tmp_path, [ev(1, "u", 10, valor="6")], "t", 0, 2, 2)   # colisão
+        assert colisoes_de_identidade(con, tmp_path) == 1
+    finally:
+        con.close()

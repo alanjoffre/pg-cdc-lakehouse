@@ -34,8 +34,9 @@ import psycopg
 from confluent_kafka import Consumer, Producer
 
 from cdc import gerador
-from cdc.destino import estado_atual
+from cdc.destino import colisoes_de_identidade, estado_atual
 from cdc.reconciliar import comparar
+from cdc.relatorio import escrever_md
 
 RAIZ = Path(__file__).resolve().parents[2]
 CONNECT = "http://localhost:58083"
@@ -83,10 +84,15 @@ def _conector_rodando() -> bool:
             and bool(corpo["tasks"]) and corpo["tasks"][0]["state"] == "RUNNING")
 
 
+def _pg_pronto() -> bool:
+    psycopg.connect(gerador.DSN).close()
+    return True
+
+
 def subir() -> None:
     _compose("down", "-v", "--remove-orphans")
     _compose("up", "-d")
-    _esperar(lambda: psycopg.connect(gerador.DSN).close() is None, 120, "PostgreSQL")
+    _esperar(_pg_pronto, 120, "PostgreSQL")
     _esperar(lambda: _http("GET", f"{CONNECT}/connectors")[0] == 200, 240, "Kafka Connect")
 
 
@@ -108,14 +114,21 @@ def derrubar_conector() -> None:
 # ---------- consumidor e mensagens ----------
 
 def consumidor(pasta: Path, metricas: Path | None = None, falhar_apos: int | None = None,
-               ocioso_s: float = 20) -> subprocess.Popen[bytes]:
+               ocioso_s: float = 20) -> subprocess.Popen[str]:
     cmd = [sys.executable, "-m", "cdc.consumidor", "--pasta", str(pasta),
            "--ocioso", str(ocioso_s)]
     if metricas:
         cmd += ["--metricas", str(metricas)]
     if falhar_apos:
         cmd += ["--falhar-apos", str(falhar_apos)]
-    return subprocess.Popen(cmd, cwd=RAIZ)
+    return subprocess.Popen(cmd, cwd=RAIZ, stdout=subprocess.PIPE, text=True)
+
+
+def fim_do_consumidor(proc: subprocess.Popen[str]) -> tuple[int, dict[str, Any]]:
+    """Espera o consumidor e devolve (código de saída, contagens que ele imprimiu)."""
+    saida, _ = proc.communicate()
+    linhas = [linha for linha in saida.splitlines() if linha.startswith("{")]
+    return proc.returncode, (json.loads(linhas[-1]) if linhas else {})
 
 
 def repetir_mensagens(n: int, semente: int = 7) -> int:
@@ -168,18 +181,42 @@ def reconciliar(pasta: Path) -> dict[str, Any]:
         brutos, unicos = con.execute(f"""
             SELECT count(*), count(DISTINCT (tabela, chave, lsn))
             FROM read_parquet('{pasta}/*.parquet')""").fetchone()   # type: ignore[misc]
+        colisoes = colisoes_de_identidade(con, pasta)
     finally:
         con.close()
     res["eventos_gravados"] = brutos
     res["eventos_unicos"] = unicos
-    res["repetidos_absorvidos"] = brutos - unicos
-    res["ok"] = all(res[t]["ok"] for t in COLUNAS)
+    res["repetidos_absorvidos_total"] = brutos - unicos
+    res["colisoes_de_identidade"] = colisoes
+    res["origem_igual_destino"] = all(res[t]["ok"] for t in COLUNAS) and colisoes == 0
     return res
 
 
 def _percentil(valores: list[float], q: float) -> float:
     ordem = sorted(valores)
     return ordem[min(len(ordem) - 1, int(round(q * (len(ordem) - 1))))]
+
+
+class _Registro:
+    """Fecha cada cenário: repetidos do próprio cenário (não o acumulado) e a falha conferida."""
+
+    def __init__(self, pasta: Path) -> None:
+        self.pasta = pasta
+        self.repetidos_antes = 0
+        self.cenarios: dict[str, dict[str, Any]] = {}
+
+    def fechar(self, nome: str, dados: dict[str, Any],
+               falha: Callable[[int], tuple[bool, str]] | None = None) -> None:
+        r = reconciliar(self.pasta)
+        novos = r["repetidos_absorvidos_total"] - self.repetidos_antes
+        self.repetidos_antes = r["repetidos_absorvidos_total"]
+        c = {**dados, **r, "repetidos_absorvidos_no_cenario": novos}
+        if falha is None:
+            c["falha_exercitada"], c["prova_da_falha"] = True, "sem falha injetada"
+        else:
+            c["falha_exercitada"], c["prova_da_falha"] = falha(novos)
+        c["ok"] = c["origem_igual_destino"] and c["falha_exercitada"]
+        self.cenarios[nome] = c
 
 
 # ---------- roteiro ----------
@@ -192,7 +229,10 @@ def executar(semente: int = 42) -> dict[str, Any]:
     lat_arq.parent.mkdir(parents=True, exist_ok=True)
     lat_arq.write_text("")
     est = gerador.Estado(random.Random(semente))
-    rel: dict[str, Any] = {"semente": semente, "cenarios": {}}
+    rel: dict[str, Any] = {"semente": semente,
+                           "executado_em": datetime.now(UTC).isoformat(timespec="seconds"),
+                           "cenarios": {}}
+    reg = _Registro(pasta)
 
     subir()
     with psycopg.connect(gerador.DSN) as pg:
@@ -203,20 +243,30 @@ def executar(semente: int = 42) -> dict[str, Any]:
     proc = consumidor(pasta, metricas=lat_arq)
     with psycopg.connect(gerador.DSN) as pg:
         feito = gerador.mudancas(pg, est, 3000)
-    proc.wait()
+        bordas = gerador.mesma_linha_na_mesma_transacao(pg, est, 40)
+    fim_do_consumidor(proc)
     lat = [json.loads(linha)["ms"] for linha in lat_arq.read_text().splitlines()]
-    rel["cenarios"]["1_normal"] = {"mudancas": feito, **reconciliar(pasta),
-                                   "latencia_ms": {"n": len(lat), "p50": _percentil(lat, .5),
-                                                   "p95": _percentil(lat, .95),
-                                                   "max": max(lat)}}
+    reg.fechar("1_normal", {"mudancas": feito, "casos_de_borda": bordas,
+                            "latencia_ms": {"n": len(lat), "p50": _percentil(lat, .5),
+                                            "p95": _percentil(lat, .95), "max": max(lat)}})
 
     # 2. queda do consumidor entre gravar e confirmar
     with psycopg.connect(gerador.DSN) as pg:
         feito = gerador.mudancas(pg, est, 1000)
-    caiu = consumidor(pasta, falhar_apos=1).wait()
-    consumidor(pasta).wait()
-    rel["cenarios"]["2_queda_consumidor"] = {"mudancas": feito, "codigo_da_queda": caiu,
-                                             **reconciliar(pasta)}
+    caiu, antes = fim_do_consumidor(consumidor(pasta, falhar_apos=1))
+    _, depois = fim_do_consumidor(consumidor(pasta))
+    gravadas = int(antes.get("mensagens", 0))
+    mesma_faixa = int(depois.get("reentregues_mesma_faixa", 0))
+    reg.fechar("2_queda_consumidor",
+               {"mudancas": feito, "codigo_da_queda": caiu,
+                "gravadas_antes_da_queda": gravadas,
+                "reentregues_na_mesma_faixa": mesma_faixa},
+               lambda novos: (caiu == 3 and gravadas > 0 and mesma_faixa + novos >= gravadas,
+                              f"o consumidor saiu com o código {caiu} (3 = queda simulada) "
+                              f"depois de gravar {gravadas} mensagens sem confirmar; na volta a "
+                              f"fila reentregou {mesma_faixa} na mesma faixa de offsets (arquivo "
+                              f"regravado igual) e {novos} em outra faixa (descartadas na "
+                              f"leitura)"))
 
     # 3. queda do conector com escrita na origem
     saida: dict[str, int] = {}
@@ -230,18 +280,25 @@ def executar(semente: int = 42) -> dict[str, Any]:
     time.sleep(1.5)
     derrubar_conector()
     t.join()
-    consumidor(pasta, ocioso_s=30).wait()
-    rel["cenarios"]["3_queda_conector"] = {"mudancas": saida, **reconciliar(pasta)}
+    fim_do_consumidor(consumidor(pasta, ocioso_s=30))
+    reg.fechar("3_queda_conector", {"mudancas": saida},
+               lambda novos: (novos > 0,
+                              f"depois do SIGKILL o Debezium voltou do último offset salvo e "
+                              f"publicou de novo {novos} eventos"))
 
     # 4. mensagens repetidas publicadas de novo no tópico
     n = repetir_mensagens(400)
-    consumidor(pasta).wait()
-    rel["cenarios"]["4_mensagem_repetida"] = {"copias_publicadas": n, **reconciliar(pasta)}
+    fim_do_consumidor(consumidor(pasta))
+    reg.fechar("4_mensagem_repetida", {"copias_publicadas": n},
+               lambda novos: (n > 0 and novos == n,
+                              f"{n} cópias publicadas no tópico, {novos} descartadas no destino"))
 
+    rel["cenarios"] = reg.cenarios
     rel["ok"] = all(c["ok"] for c in rel["cenarios"].values())
     destino = RAIZ / "reports" / "cenarios.json"
     destino.parent.mkdir(exist_ok=True)
     destino.write_text(json.dumps(rel, indent=2, ensure_ascii=False) + "\n")
+    escrever_md(rel, RAIZ / "reports" / "cenarios.md")
     return rel
 
 
@@ -249,7 +306,8 @@ def main() -> None:
     rel = executar()
     for nome, c in rel["cenarios"].items():
         print(f"{nome:24} ok={c['ok']}  gravados={c['eventos_gravados']}  "
-              f"repetidos_absorvidos={c['repetidos_absorvidos']}")
+              f"repetidos_no_cenario={c['repetidos_absorvidos_no_cenario']}  "
+              f"colisoes={c['colisoes_de_identidade']}")
     if "latencia_ms" in rel["cenarios"]["1_normal"]:
         print("latência (ms):", rel["cenarios"]["1_normal"]["latencia_ms"])
     print("APROVADO" if rel["ok"] else "REPROVADO")

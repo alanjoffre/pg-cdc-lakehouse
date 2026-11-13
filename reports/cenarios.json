@@ -1,0 +1,160 @@
+{
+  "semente": 42,
+  "executado_em": "2026-11-13T17:46:14+00:00",
+  "cenarios": {
+    "1_normal": {
+      "mudancas": {
+        "insert": 919,
+        "update": 1502,
+        "delete": 579
+      },
+      "casos_de_borda": {
+        "dois_updates": 20,
+        "apaga_e_reinsere": 20
+      },
+      "latencia_ms": {
+        "n": 3080,
+        "p50": 4201.8,
+        "p95": 5689.9,
+        "max": 6995.5
+      },
+      "clientes": {
+        "tabela": "clientes",
+        "linhas_origem": 200,
+        "linhas_destino": 200,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "pedidos": {
+        "tabela": "pedidos",
+        "linhas_origem": 1340,
+        "linhas_destino": 1340,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "eventos_gravados": 4280,
+      "eventos_unicos": 4280,
+      "repetidos_absorvidos_total": 0,
+      "colisoes_de_identidade": 0,
+      "origem_igual_destino": true,
+      "repetidos_absorvidos_no_cenario": 0,
+      "falha_exercitada": true,
+      "prova_da_falha": "sem falha injetada",
+      "ok": true
+    },
+    "2_queda_consumidor": {
+      "mudancas": {
+        "insert": 301,
+        "update": 497,
+        "delete": 202
+      },
+      "codigo_da_queda": 3,
+      "gravadas_antes_da_queda": 500,
+      "reentregues_na_mesma_faixa": 500,
+      "clientes": {
+        "tabela": "clientes",
+        "linhas_origem": 200,
+        "linhas_destino": 200,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "pedidos": {
+        "tabela": "pedidos",
+        "linhas_origem": 1439,
+        "linhas_destino": 1439,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "eventos_gravados": 5280,
+      "eventos_unicos": 5280,
+      "repetidos_absorvidos_total": 0,
+      "colisoes_de_identidade": 0,
+      "origem_igual_destino": true,
+      "repetidos_absorvidos_no_cenario": 0,
+      "falha_exercitada": true,
+      "prova_da_falha": "o consumidor saiu com o código 3 (3 = queda simulada) depois de gravar 500 mensagens sem confirmar; na volta a fila reentregou 500 na mesma faixa de offsets (arquivo regravado igual) e 0 em outra faixa (descartadas na leitura)",
+      "ok": true
+    },
+    "3_queda_conector": {
+      "mudancas": {
+        "insert": 473,
+        "update": 729,
+        "delete": 298
+      },
+      "clientes": {
+        "tabela": "clientes",
+        "linhas_origem": 200,
+        "linhas_destino": 200,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "pedidos": {
+        "tabela": "pedidos",
+        "linhas_origem": 1614,
+        "linhas_destino": 1614,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "eventos_gravados": 6820,
+      "eventos_unicos": 6780,
+      "repetidos_absorvidos_total": 40,
+      "colisoes_de_identidade": 0,
+      "origem_igual_destino": true,
+      "repetidos_absorvidos_no_cenario": 40,
+      "falha_exercitada": true,
+      "prova_da_falha": "depois do SIGKILL o Debezium voltou do último offset salvo e publicou de novo 40 eventos",
+      "ok": true
+    },
+    "4_mensagem_repetida": {
+      "copias_publicadas": 400,
+      "clientes": {
+        "tabela": "clientes",
+        "linhas_origem": 200,
+        "linhas_destino": 200,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "pedidos": {
+        "tabela": "pedidos",
+        "linhas_origem": 1614,
+        "linhas_destino": 1614,
+        "faltando": [],
+        "sobrando": [],
+        "divergentes": [],
+        "assinatura_igual": true,
+        "ok": true
+      },
+      "eventos_gravados": 7220,
+      "eventos_unicos": 6780,
+      "repetidos_absorvidos_total": 440,
+      "colisoes_de_identidade": 0,
+      "origem_igual_destino": true,
+      "repetidos_absorvidos_no_cenario": 400,
+      "falha_exercitada": true,
+      "prova_da_falha": "400 cópias publicadas no tópico, 400 descartadas no destino",
+      "ok": true
+    }
+  },
+  "ok": true
+}

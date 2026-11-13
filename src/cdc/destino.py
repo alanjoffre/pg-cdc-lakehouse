@@ -6,8 +6,10 @@ Duas regras garantem "nem perde, nem duplica":
 2. A leitura descarta repetidos pela identidade (tabela, chave, lsn) e fica com o
    evento de maior LSN de cada chave. Reentregar o mesmo evento não muda o resultado.
 
-O nome do arquivo vem do tópico, partição e faixa de offsets: reprocessar a mesma faixa
-reescreve o mesmo arquivo em vez de criar outro.
+A garantia é a regra 2 (o descarte de repetidos na leitura). O nome do arquivo, que vem do
+tópico, da partição e da faixa de offsets, é só uma economia: reprocessar exatamente a mesma
+faixa reescreve o mesmo arquivo. Depois de uma queda a faixa reentregue pode ter outro corte e
+virar outro arquivo; os repetidos dentro dele são descartados pela regra 2.
 """
 from __future__ import annotations
 
@@ -61,6 +63,26 @@ def eventos_unicos(con: duckdb.DuckDBPyConnection, pasta: Path) -> duckdb.DuckDB
         FROM {_origem(pasta)}
         GROUP BY tabela, chave, lsn
     """)
+
+
+def colisoes_de_identidade(con: duckdb.DuckDBPyConnection, pasta: Path) -> int:
+    """Identidades (tabela, chave, lsn) com mais de um conteúdo diferente.
+
+    O descarte de repetidos só é seguro se cada mudança tiver identidade própria. Se duas
+    mudanças diferentes da mesma linha chegassem com o mesmo LSN, `eventos_unicos` fundiria as
+    duas em silêncio. Este número tem de ser 0: é a prova de que a identidade é única.
+    """
+    if not any(pasta.glob("*.parquet")):
+        return 0
+    linha = con.execute(f"""
+        SELECT count(*) FROM (
+            SELECT tabela, chave, lsn
+            FROM {_origem(pasta)}
+            GROUP BY tabela, chave, lsn
+            HAVING count(DISTINCT (op, coalesce(linha, ''))) > 1
+        )
+    """).fetchone()
+    return 0 if linha is None else int(linha[0])
 
 
 def estado_atual(con: duckdb.DuckDBPyConnection, pasta: Path, tabela: str) -> list[dict]:
