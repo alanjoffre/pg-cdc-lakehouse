@@ -1,6 +1,6 @@
 {
   "semente": 42,
-  "executado_em": "2026-11-13T17:46:14+00:00",
+  "executado_em": "2026-11-13T18:02:17+00:00",
   "cenarios": {
     "1_normal": {
       "mudancas": {
@@ -14,9 +14,15 @@
       },
       "latencia_ms": {
         "n": 3080,
-        "p50": 4201.8,
-        "p95": 5689.9,
-        "max": 6995.5
+        "p50": 4073.0,
+        "p95": 4854.8,
+        "max": 6305.6
+      },
+      "latencia_delta_ms": {
+        "n": 3080,
+        "p50": 4134.4,
+        "p95": 4910.3,
+        "max": 6354.1
       },
       "clientes": {
         "tabela": "clientes",
@@ -26,7 +32,18 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "clientes",
+          "linhas_origem": 200,
+          "linhas_destino": 200,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 5
+        }
       },
       "pedidos": {
         "tabela": "pedidos",
@@ -36,12 +53,24 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "pedidos",
+          "linhas_origem": 1340,
+          "linhas_destino": 1340,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 10
+        }
       },
       "eventos_gravados": 4280,
       "eventos_unicos": 4280,
       "repetidos_absorvidos_total": 0,
       "colisoes_de_identidade": 0,
+      "delta_igual_origem": true,
       "origem_igual_destino": true,
       "repetidos_absorvidos_no_cenario": 0,
       "falha_exercitada": true,
@@ -65,7 +94,18 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "clientes",
+          "linhas_origem": 200,
+          "linhas_destino": 200,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 6
+        }
       },
       "pedidos": {
         "tabela": "pedidos",
@@ -75,12 +115,24 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "pedidos",
+          "linhas_origem": 1439,
+          "linhas_destino": 1439,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 12
+        }
       },
       "eventos_gravados": 5280,
       "eventos_unicos": 5280,
       "repetidos_absorvidos_total": 0,
       "colisoes_de_identidade": 0,
+      "delta_igual_origem": true,
       "origem_igual_destino": true,
       "repetidos_absorvidos_no_cenario": 0,
       "falha_exercitada": true,
@@ -101,7 +153,18 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "clientes",
+          "linhas_origem": 200,
+          "linhas_destino": 200,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 7
+        }
       },
       "pedidos": {
         "tabela": "pedidos",
@@ -111,16 +174,28 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "pedidos",
+          "linhas_origem": 1614,
+          "linhas_destino": 1614,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 16
+        }
       },
-      "eventos_gravados": 6820,
+      "eventos_gravados": 7020,
       "eventos_unicos": 6780,
-      "repetidos_absorvidos_total": 40,
+      "repetidos_absorvidos_total": 240,
       "colisoes_de_identidade": 0,
+      "delta_igual_origem": true,
       "origem_igual_destino": true,
-      "repetidos_absorvidos_no_cenario": 40,
+      "repetidos_absorvidos_no_cenario": 240,
       "falha_exercitada": true,
-      "prova_da_falha": "depois do SIGKILL o Debezium voltou do último offset salvo e publicou de novo 40 eventos",
+      "prova_da_falha": "depois do SIGKILL o Debezium voltou do último offset salvo e publicou de novo 240 eventos",
       "ok": true
     },
     "4_mensagem_repetida": {
@@ -133,7 +208,18 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "clientes",
+          "linhas_origem": 200,
+          "linhas_destino": 200,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 7
+        }
       },
       "pedidos": {
         "tabela": "pedidos",
@@ -143,12 +229,24 @@
         "sobrando": [],
         "divergentes": [],
         "assinatura_igual": true,
-        "ok": true
+        "ok": true,
+        "delta": {
+          "tabela": "pedidos",
+          "linhas_origem": 1614,
+          "linhas_destino": 1614,
+          "faltando": [],
+          "sobrando": [],
+          "divergentes": [],
+          "assinatura_igual": true,
+          "ok": true,
+          "commits": 16
+        }
       },
-      "eventos_gravados": 7220,
+      "eventos_gravados": 7420,
       "eventos_unicos": 6780,
-      "repetidos_absorvidos_total": 440,
+      "repetidos_absorvidos_total": 640,
       "colisoes_de_identidade": 0,
+      "delta_igual_origem": true,
       "origem_igual_destino": true,
       "repetidos_absorvidos_no_cenario": 400,
       "falha_exercitada": true,

@@ -82,3 +82,27 @@ Cada decisão de desenho do case, com o motivo e o que fica de fora. Formato cur
   Portas próprias (56432, 59094, 58083), para não disputar com outros bancos da máquina.
 - **Consequência:** a latência medida serve para comparar execuções deste projeto. Não é
   benchmark.
+
+## D9. Estado atual em Delta Lake, por MERGE que só avança
+
+- **Contexto:** o log bruto em Parquet guarda tudo o que chegou, com repetidos, e o estado atual
+  era calculado na leitura (DuckDB). Num lakehouse, quem consulta lê uma tabela já resolvida,
+  com transação e histórico de versões.
+- **Decisão:** uma tabela Delta por tabela de origem (delta-rs, sem Spark), atualizada pelo
+  consumidor a cada lote, **antes** de confirmar o offset:
+  1. dedup do lote: fica o evento de maior LSN de cada chave;
+  2. `MERGE … WHEN MATCHED AND s.lsn > t.lsn THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT`;
+  3. delete lógico: o `op='d'` fica na tabela com `apagado = true` e o LSN dele.
+- **Prova:** testes para reaplicar o mesmo lote, evento velho depois do delete, duas mudanças
+  da mesma chave no lote, apagar e reinserir o mesmo id e lotes em ordem invertida. Sem o
+  dedup do lote, uma tabela nova recebeu a mesma chave 3 vezes, sem erro (conferido tirando a
+  regra). Nos 4 cenários, a tabela Delta é reconciliada contra a origem como o log.
+- **Consequência:** a queda do consumidor do cenário 2 acontece depois do MERGE e antes da
+  confirmação, então a reentrega reaplica lotes já aplicados, e o predicado do LSN os ignora.
+  Cada lote é um commit no `_delta_log`: em produção, compactar (`optimize`) e limpar
+  (`vacuum`) periodicamente. O MERGE acrescentou ~60 ms ao p50 da latência; o grosso dos ~4 s
+  vem antes do consumidor (a investigar).
+- **Equivalente no Databricks:** `AUTO CDC` (antes `APPLY CHANGES INTO`) com `KEYS (id)`,
+  `SEQUENCE BY lsn` e `APPLY AS DELETE WHEN op = 'd'`.
+- **Fora do case:** Iceberg (a mesma ideia com outro formato de tabela), Flink e Spark
+  Structured Streaming. Ficam de fora para manter o ambiente pequeno (D8).

@@ -1,6 +1,6 @@
-"""Destino idempotente: eventos brutos em Parquet e o estado atual calculado no DuckDB.
+"""Log bruto em Parquet e o estado atual calculado dele no DuckDB.
 
-Duas regras garantem "nem perde, nem duplica":
+Duas regras fazem o estado final bater com a origem mesmo quando a fila reentrega eventos:
 1. O consumidor só confirma o offset no Kafka DEPOIS de gravar o arquivo (entrega
    pelo menos uma vez: na queda, a fila reentrega o que não foi confirmado).
 2. A leitura descarta repetidos pela identidade (tabela, chave, lsn) e fica com o

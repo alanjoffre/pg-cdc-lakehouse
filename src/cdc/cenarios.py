@@ -9,13 +9,15 @@ Cenários, na ordem (o mesmo ambiente, o estado vai se acumulando):
    do último offset que tinha salvo — reenvia o que já tinha publicado;
 4. mensagem repetida: cópias de mensagens já consumidas são publicadas de novo no tópico.
 
-Depois de cada um: origem × destino por tabela (contagem, chaves, conteúdo e hash).
+Depois de cada um: origem × destino por tabela (contagem, chaves, conteúdo e hash), nos dois
+destinos: o estado calculado do log em Parquet (DuckDB) e a tabela Delta Lake (MERGE).
 O resultado vai para reports/cenarios.json.
 """
 from __future__ import annotations
 
 import json
 import random
+import shutil
 import subprocess
 import sys
 import threading
@@ -33,12 +35,13 @@ import duckdb
 import psycopg
 from confluent_kafka import Consumer, Producer
 
-from cdc import gerador
+from cdc import delta, gerador
 from cdc.destino import colisoes_de_identidade, estado_atual
 from cdc.reconciliar import comparar
 from cdc.relatorio import escrever_md
 
 RAIZ = Path(__file__).resolve().parents[2]
+PASTA_DELTA = RAIZ / "dados" / "delta"
 CONNECT = "http://localhost:58083"
 CONECTOR = "loja-postgres"
 BOOTSTRAP = "localhost:59094"
@@ -116,7 +119,7 @@ def derrubar_conector() -> None:
 def consumidor(pasta: Path, metricas: Path | None = None, falhar_apos: int | None = None,
                ocioso_s: float = 20) -> subprocess.Popen[str]:
     cmd = [sys.executable, "-m", "cdc.consumidor", "--pasta", str(pasta),
-           "--ocioso", str(ocioso_s)]
+           "--delta", str(PASTA_DELTA), "--ocioso", str(ocioso_s)]
     if metricas:
         cmd += ["--metricas", str(metricas)]
     if falhar_apos:
@@ -177,7 +180,11 @@ def reconciliar(pasta: Path) -> dict[str, Any]:
                 origem = [_canonica(dict(zip(cols, r, strict=True))) for r in cur.fetchall()]
                 destino = [_canonica(r) for r in estado_atual(con, pasta, tabela)]
                 r = comparar(tabela, origem, destino, cols)
-                res[tabela] = {**asdict(r), "ok": r.ok}
+                no_delta = [_canonica(r) for r in delta.estado_atual(PASTA_DELTA, tabela)]
+                rd = comparar(tabela, origem, no_delta, cols)
+                res[tabela] = {**asdict(r), "ok": r.ok,
+                               "delta": {**asdict(rd), "ok": rd.ok,
+                                         "commits": delta.versoes(PASTA_DELTA, tabela)}}
         brutos, unicos = con.execute(f"""
             SELECT count(*), count(DISTINCT (tabela, chave, lsn))
             FROM read_parquet('{pasta}/*.parquet')""").fetchone()   # type: ignore[misc]
@@ -188,7 +195,9 @@ def reconciliar(pasta: Path) -> dict[str, Any]:
     res["eventos_unicos"] = unicos
     res["repetidos_absorvidos_total"] = brutos - unicos
     res["colisoes_de_identidade"] = colisoes
-    res["origem_igual_destino"] = all(res[t]["ok"] for t in COLUNAS) and colisoes == 0
+    res["delta_igual_origem"] = all(res[t]["delta"]["ok"] for t in COLUNAS)
+    res["origem_igual_destino"] = (all(res[t]["ok"] for t in COLUNAS) and colisoes == 0
+                                   and res["delta_igual_origem"])
     return res
 
 
@@ -225,6 +234,7 @@ def executar(semente: int = 42) -> dict[str, Any]:
     pasta = RAIZ / "dados" / "eventos"
     for velho in pasta.glob("*.parquet"):
         velho.unlink()
+    shutil.rmtree(PASTA_DELTA, ignore_errors=True)
     lat_arq = RAIZ / "dados" / "latencia.jsonl"
     lat_arq.parent.mkdir(parents=True, exist_ok=True)
     lat_arq.write_text("")
@@ -245,10 +255,14 @@ def executar(semente: int = 42) -> dict[str, Any]:
         feito = gerador.mudancas(pg, est, 3000)
         bordas = gerador.mesma_linha_na_mesma_transacao(pg, est, 40)
     fim_do_consumidor(proc)
-    lat = [json.loads(linha)["ms"] for linha in lat_arq.read_text().splitlines()]
+    medidas = [json.loads(linha) for linha in lat_arq.read_text().splitlines()]
+
+    def _lat(campo: str) -> dict[str, float]:
+        v = [m[campo] for m in medidas]
+        return {"n": len(v), "p50": _percentil(v, .5), "p95": _percentil(v, .95), "max": max(v)}
+
     reg.fechar("1_normal", {"mudancas": feito, "casos_de_borda": bordas,
-                            "latencia_ms": {"n": len(lat), "p50": _percentil(lat, .5),
-                                            "p95": _percentil(lat, .95), "max": max(lat)}})
+                            "latencia_ms": _lat("ms"), "latencia_delta_ms": _lat("ms_delta")})
 
     # 2. queda do consumidor entre gravar e confirmar
     with psycopg.connect(gerador.DSN) as pg:
@@ -305,11 +319,13 @@ def executar(semente: int = 42) -> dict[str, Any]:
 def main() -> None:
     rel = executar()
     for nome, c in rel["cenarios"].items():
-        print(f"{nome:24} ok={c['ok']}  gravados={c['eventos_gravados']}  "
+        print(f"{nome:24} ok={c['ok']}  delta={c['delta_igual_origem']}  "
+              f"gravados={c['eventos_gravados']}  "
               f"repetidos_no_cenario={c['repetidos_absorvidos_no_cenario']}  "
               f"colisoes={c['colisoes_de_identidade']}")
     if "latencia_ms" in rel["cenarios"]["1_normal"]:
-        print("latência (ms):", rel["cenarios"]["1_normal"]["latencia_ms"])
+        print("latência até o Parquet (ms):", rel["cenarios"]["1_normal"]["latencia_ms"])
+        print("latência até o Delta (ms):", rel["cenarios"]["1_normal"].get("latencia_delta_ms"))
     print("APROVADO" if rel["ok"] else "REPROVADO")
     sys.exit(0 if rel["ok"] else 1)
 

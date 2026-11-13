@@ -34,6 +34,13 @@ def _falhas(c: dict[str, Any]) -> int:
     return sum(len(c[t][k]) for t in TABELAS for k in ("faltando", "sobrando", "divergentes"))
 
 
+def _delta(c: dict[str, Any]) -> str:
+    """Origem × tabela Delta: "sim" só se contagem, chaves, conteúdo e hash baterem."""
+    if not all("delta" in c[t] for t in TABELAS):
+        return "—"
+    return _sim(all(c[t]["delta"]["ok"] for t in TABELAS))
+
+
 def gerar_md(rel: dict[str, Any]) -> str:
     cen = rel["cenarios"]
     out = [
@@ -44,15 +51,19 @@ def gerar_md(rel: dict[str, Any]) -> str:
         "",
         "Gerado por `python -m cdc.cenarios` (prova completa em `cenarios.json`). Dado sintético,",
         "uma máquina, um broker. Cada cenário roda sobre o estado deixado pelo anterior.",
+        "Dois destinos conferidos contra a origem: o estado calculado do log em Parquet (DuckDB)",
+        "e a tabela Delta Lake mantida por MERGE.",
         "",
         "| Cenário | Linhas origem × destino | Faltando, sobrando ou divergentes | Hash igual "
-        "| Repetidos descartados no cenário | Falha conferida | Resultado |",
-        "|---|---|---|---|---|---|---|",
+        "| Delta igual à origem | Repetidos descartados no cenário | Falha conferida "
+        "| Resultado |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for nome, c in cen.items():
         hash_ok = all(c[t]["assinatura_igual"] for t in TABELAS)
         out.append(
             f"| {TITULOS.get(nome, nome)} | {_linhas(c)} | {_falhas(c)} | {_sim(hash_ok)} "
+            f"| {_delta(c)} "
             f"| {c['repetidos_absorvidos_no_cenario']} | {_sim(c['falha_exercitada'])} "
             f"| {'ok' if c['ok'] else '**falhou**'} |")
     out += ["", "## Como cada falha foi conferida", ""]
@@ -73,6 +84,9 @@ def gerar_md(rel: dict[str, Any]) -> str:
         out += ["", "## Latência (cenário 1)", "",
                 f"Do commit na origem ao arquivo gravado, {lat['n']} mudanças: "
                 f"p50 {lat['p50']:.0f} ms, p95 {lat['p95']:.0f} ms, máximo {lat['max']:.0f} ms.",
+                *([f"Até a tabela Delta (depois do MERGE): p50 {d['p50']:.0f} ms, "
+                   f"p95 {d['p95']:.0f} ms, máximo {d['max']:.0f} ms."]
+                  if (d := normal.get("latencia_delta_ms")) else []),
                 "Medida numa máquina local com Docker e um broker: serve para comparar "
                 "execuções deste projeto, não é benchmark."]
     return "\n".join(out) + "\n"

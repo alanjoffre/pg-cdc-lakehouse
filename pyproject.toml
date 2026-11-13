@@ -1,10 +1,11 @@
 [project]
 name = "pg-cdc-lakehouse"
 version = "0.1.0"
-description = "Replicação de PostgreSQL para Parquet com CDC (Debezium + Apache Kafka), sem perder nem duplicar linha"
+description = "CDC de PostgreSQL para Parquet e Delta Lake (Debezium + Apache Kafka), com o estado final conferido contra a origem em falhas injetadas"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["duckdb>=1.4", "confluent-kafka>=2.6", "psycopg[binary]>=3.2"]
+dependencies = ["duckdb>=1.4", "confluent-kafka>=2.6", "psycopg[binary]>=3.2",
+                "deltalake>=1.6", "pyarrow>=20"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3", "ruff>=0.8", "mypy>=1.13"]
@@ -20,6 +21,10 @@ where = ["src"]
 line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
