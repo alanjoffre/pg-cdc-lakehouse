@@ -1,0 +1,33 @@
+sha=70f213b 13/11 15:33 rodada 5
+ Network pg-cdc-lakehouse_default Creating 
+ Network pg-cdc-lakehouse_default Creating 
+ Network pg-cdc-lakehouse_default Created 
+ Network pg-cdc-lakehouse_default Created 
+ Container pg-cdc-lakehouse-kafka-1 Creating 
+ Container pg-cdc-lakehouse-postgres-1 Creating 
+ Container pg-cdc-lakehouse-postgres-1 Created 
+ Container pg-cdc-lakehouse-kafka-1 Created 
+ Container pg-cdc-lakehouse-connect-1 Creating 
+ Container pg-cdc-lakehouse-connect-1 Created 
+ Container pg-cdc-lakehouse-kafka-1 Starting 
+ Container pg-cdc-lakehouse-postgres-1 Starting 
+ Container pg-cdc-lakehouse-kafka-1 Started 
+ Container pg-cdc-lakehouse-postgres-1 Started 
+ Container pg-cdc-lakehouse-postgres-1 Waiting 
+ Container pg-cdc-lakehouse-postgres-1 Healthy 
+ Container pg-cdc-lakehouse-connect-1 Starting 
+ Container pg-cdc-lakehouse-connect-1 Started 
+ Container pg-cdc-lakehouse-connect-1 Killing 
+ Container pg-cdc-lakehouse-connect-1 Killed 
+ Container pg-cdc-lakehouse-postgres-1 Waiting 
+ Container pg-cdc-lakehouse-postgres-1 Healthy 
+ Container pg-cdc-lakehouse-connect-1 Starting 
+ Container pg-cdc-lakehouse-connect-1 Started 
+1_normal                 ok=True  delta=True  gravados=4280  repetidos_no_cenario=0  colisoes=0
+2_queda_consumidor       ok=True  delta=True  gravados=5780  repetidos_no_cenario=500  colisoes=0
+3_queda_conector         ok=True  delta=True  gravados=7580  repetidos_no_cenario=300  colisoes=0
+4_mensagem_repetida      ok=True  delta=True  gravados=7980  repetidos_no_cenario=400  colisoes=0
+latência até o Parquet (ms): {'n': 3080, 'p50': 1435.0, 'p95': 2322.4, 'max': 2515.4}
+latência até o Delta (ms): {'n': 3080, 'p50': 1607.7, 'p95': 2438.9, 'max': 2695.9}
+APROVADO
+saida=0

@@ -1,6 +1,7 @@
 {
   "semente": 42,
-  "executado_em": "2026-11-13T18:02:17+00:00",
+  "commit": "70f213b",
+  "executado_em": "2026-11-13T18:33:18+00:00",
   "cenarios": {
     "1_normal": {
       "mudancas": {
@@ -12,17 +13,23 @@
         "dois_updates": 20,
         "apaga_e_reinsere": 20
       },
+      "latencia_kafka_ms": {
+        "n": 3080,
+        "p50": 483,
+        "p95": 859,
+        "max": 965
+      },
       "latencia_ms": {
         "n": 3080,
-        "p50": 4073.0,
-        "p95": 4854.8,
-        "max": 6305.6
+        "p50": 1435.0,
+        "p95": 2322.4,
+        "max": 2515.4
       },
       "latencia_delta_ms": {
         "n": 3080,
-        "p50": 4134.4,
-        "p95": 4910.3,
-        "max": 6354.1
+        "p50": 1607.7,
+        "p95": 2438.9,
+        "max": 2695.9
       },
       "clientes": {
         "tabela": "clientes",
@@ -42,7 +49,7 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 5
+          "commits": 11
         }
       },
       "pedidos": {
@@ -63,7 +70,7 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 10
+          "commits": 12
         }
       },
       "eventos_gravados": 4280,
@@ -85,7 +92,7 @@
       },
       "codigo_da_queda": 3,
       "gravadas_antes_da_queda": 500,
-      "reentregues_na_mesma_faixa": 500,
+      "reentregues_na_mesma_faixa": 0,
       "clientes": {
         "tabela": "clientes",
         "linhas_origem": 200,
@@ -104,7 +111,7 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 6
+          "commits": 13
         }
       },
       "pedidos": {
@@ -125,18 +132,18 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 12
+          "commits": 14
         }
       },
-      "eventos_gravados": 5280,
+      "eventos_gravados": 5780,
       "eventos_unicos": 5280,
-      "repetidos_absorvidos_total": 0,
+      "repetidos_absorvidos_total": 500,
       "colisoes_de_identidade": 0,
       "delta_igual_origem": true,
       "origem_igual_destino": true,
-      "repetidos_absorvidos_no_cenario": 0,
+      "repetidos_absorvidos_no_cenario": 500,
       "falha_exercitada": true,
-      "prova_da_falha": "o consumidor saiu com o código 3 (3 = queda simulada) depois de gravar 500 mensagens sem confirmar; na volta a fila reentregou 500 na mesma faixa de offsets (arquivo regravado igual) e 0 em outra faixa (descartadas na leitura)",
+      "prova_da_falha": "o consumidor saiu com o código 3 (3 = queda simulada) depois de gravar 500 mensagens sem confirmar; na volta a fila reentregou 0 na mesma faixa de offsets (arquivo regravado igual) e 500 em outra faixa (descartadas na leitura)",
       "ok": true
     },
     "3_queda_conector": {
@@ -163,7 +170,7 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 7
+          "commits": 16
         }
       },
       "pedidos": {
@@ -184,22 +191,24 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 16
+          "commits": 19
         }
       },
-      "eventos_gravados": 7020,
+      "eventos_gravados": 7580,
       "eventos_unicos": 6780,
-      "repetidos_absorvidos_total": 240,
+      "repetidos_absorvidos_total": 800,
       "colisoes_de_identidade": 0,
       "delta_igual_origem": true,
       "origem_igual_destino": true,
-      "repetidos_absorvidos_no_cenario": 240,
+      "repetidos_absorvidos_no_cenario": 300,
       "falha_exercitada": true,
-      "prova_da_falha": "depois do SIGKILL o Debezium voltou do último offset salvo e publicou de novo 240 eventos",
+      "prova_da_falha": "depois do SIGKILL o Debezium voltou do último offset salvo e publicou de novo 300 eventos",
       "ok": true
     },
     "4_mensagem_repetida": {
       "copias_publicadas": 400,
+      "delta_linhas_no_merge": 372,
+      "delta_linhas_alteradas": 0,
       "clientes": {
         "tabela": "clientes",
         "linhas_origem": 200,
@@ -218,7 +227,7 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 7
+          "commits": 16
         }
       },
       "pedidos": {
@@ -239,18 +248,18 @@
           "divergentes": [],
           "assinatura_igual": true,
           "ok": true,
-          "commits": 16
+          "commits": 19
         }
       },
-      "eventos_gravados": 7420,
+      "eventos_gravados": 7980,
       "eventos_unicos": 6780,
-      "repetidos_absorvidos_total": 640,
+      "repetidos_absorvidos_total": 1200,
       "colisoes_de_identidade": 0,
       "delta_igual_origem": true,
       "origem_igual_destino": true,
       "repetidos_absorvidos_no_cenario": 400,
       "falha_exercitada": true,
-      "prova_da_falha": "400 cópias publicadas no tópico, 400 descartadas no destino",
+      "prova_da_falha": "400 cópias publicadas no tópico, 400 descartadas no log; no Delta, o MERGE recebeu 372 linhas e alterou 0 (o predicado do LSN barrou todas)",
       "ok": true
     }
   },
