@@ -14,13 +14,16 @@ def _cenario(ok=True, **extra):
 
 
 def test_aprovado_mostra_numeros_e_latencia():
-    rel = {"semente": 42, "ok": True, "cenarios": {"1_normal": _cenario(
+    rel = {"semente": 42, "ok": True, "commit": "abc1234", "cenarios": {"1_normal": _cenario(
         casos_de_borda={"dois_updates": 20, "apaga_e_reinsere": 20},
+        latencia_kafka_ms={"n": 10, "p50": 40.0, "p95": 90.0, "max": 120.0},
         latencia_ms={"n": 10, "p50": 100.4, "p95": 250.0, "max": 300.0})}}
     md = gerar_md(rel)
-    assert "**APROVADO**" in md
+    assert "**APROVADO**" in md and "commit abc1234" in md
     assert "clientes 2 × 2 · pedidos 3 × 3" in md
-    assert "p95 250 ms" in md and "não é benchmark" in md
+    assert "| no tópico do Kafka | 40 ms | 90 ms | 120 ms |" in md
+    assert "| no arquivo Parquet gravado | 100 ms | 250 ms | 300 ms |" in md
+    assert "`source.ts_ms`" in md and "não é benchmark" in md
     assert "20 vezes dois updates" in md
 
 

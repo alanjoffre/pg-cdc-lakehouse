@@ -20,7 +20,7 @@ class Evento:
     chave: int
     op: str
     lsn: int
-    ts_ms: int          # hora do commit na origem (source.ts_ms): base da latência
+    ts_ms: int          # hora da mudança na origem (source.ts_ms): base da latência
     linha: dict[str, Any] | None   # estado da linha depois da mudança; None no delete
 
     @property

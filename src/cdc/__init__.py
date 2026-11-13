@@ -1,1 +1,2 @@
-"""Replicação de PostgreSQL para Parquet com CDC (Debezium + Kafka), sem perder nem duplicar."""
+"""CDC de PostgreSQL para Parquet e Delta Lake (Debezium + Kafka); estado final conferido contra a
+origem em falhas injetadas."""

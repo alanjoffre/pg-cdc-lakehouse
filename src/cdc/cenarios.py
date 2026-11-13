@@ -1,8 +1,9 @@
 """Roteiro de ponta a ponta: sobe o ambiente limpo, injeta cada falha e reconcilia.
 
 Cenários, na ordem (o mesmo ambiente, o estado vai se acumulando):
-1. normal: snapshot inicial + mudanças com o consumidor rodando junto; mede a latência
-   (commit na origem → arquivo gravado);
+1. normal: snapshot inicial + mudanças com o consumidor rodando junto; mede a latência por
+   etapa (mudança na origem → tópico, → Parquet, → Delta), só depois de o consumidor ter
+   gravado o snapshot (sem a partida a frio na conta);
 2. queda do consumidor: o processo cai depois de gravar e antes de confirmar o offset;
    na volta o Kafka reentrega o lote;
 3. queda do conector: o Debezium é morto (SIGKILL) com a origem recebendo escrita, e volta
@@ -33,7 +34,7 @@ from typing import Any
 
 import duckdb
 import psycopg
-from confluent_kafka import Consumer, Producer
+from confluent_kafka import OFFSET_BEGINNING, Consumer, Producer, TopicPartition
 
 from cdc import delta, gerador
 from cdc.destino import colisoes_de_identidade, estado_atual
@@ -135,23 +136,31 @@ def fim_do_consumidor(proc: subprocess.Popen[str]) -> tuple[int, dict[str, Any]]
 
 
 def repetir_mensagens(n: int, semente: int = 7) -> int:
-    """Lê as n primeiras mensagens de pedidos e publica cópias, embaralhadas, no mesmo tópico."""
+    """Lê o tópico de pedidos inteiro, sorteia n mensagens e publica cópias, embaralhadas.
+
+    O sorteio cobre o histórico todo (snapshot, mudanças e os cenários anteriores), e não só o
+    começo do tópico, onde só há snapshot.
+    """
+    topico = "loja.public.pedidos"
     c = Consumer({"bootstrap.servers": BOOTSTRAP, "group.id": f"repetidor-{time.time_ns()}",
-                  "auto.offset.reset": "earliest", "enable.auto.commit": False})
-    c.subscribe(["loja.public.pedidos"])
+                  "enable.auto.commit": False})
+    _, alto = c.get_watermark_offsets(TopicPartition(topico, 0), timeout=10)
+    c.assign([TopicPartition(topico, 0, OFFSET_BEGINNING)])
     lidas: list[tuple[bytes | None, bytes | None]] = []
-    fim = time.monotonic() + 60
-    while len(lidas) < n and time.monotonic() < fim:
-        for m in c.consume(num_messages=n - len(lidas), timeout=1.0):
+    ultimo = -1
+    fim = time.monotonic() + 120
+    while ultimo < alto - 1 and time.monotonic() < fim:
+        for m in c.consume(num_messages=1000, timeout=1.0):
             if m.error() is None:
+                ultimo = m.offset() if m.offset() is not None else ultimo  # type: ignore[assignment]
                 lidas.append((m.key(), m.value()))
     c.close()
-    random.Random(semente).shuffle(lidas)
+    sorteadas = random.Random(semente).sample(lidas, min(n, len(lidas)))   # já embaralhadas
     p = Producer({"bootstrap.servers": BOOTSTRAP})
-    for chave, valor in lidas:
-        p.produce("loja.public.pedidos", key=chave, value=valor)
+    for chave, valor in sorteadas:
+        p.produce(topico, key=chave, value=valor)
     p.flush(30)
-    return len(lidas)
+    return len(sorteadas)
 
 
 # ---------- reconciliação ----------
@@ -201,6 +210,26 @@ def reconciliar(pasta: Path) -> dict[str, Any]:
     return res
 
 
+def _gravados(pasta: Path) -> int:
+    if not any(pasta.glob("*.parquet")):
+        return 0
+    con = duckdb.connect()
+    try:
+        return int(con.execute(
+            f"SELECT count(*) FROM read_parquet('{pasta}/*.parquet')").fetchone()[0])  # type: ignore[index]
+    finally:
+        con.close()
+
+
+def _commit() -> str:
+    """O commit do código que gerou o relatório (e se havia alteração local fora dele)."""
+    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=RAIZ, text=True,
+                         capture_output=True).stdout.strip() or "sem git"
+    sujo = subprocess.run(["git", "status", "--porcelain", "--", ".", ":!reports", ":!dados",
+                           ":!logs"], cwd=RAIZ, text=True, capture_output=True).stdout.strip()
+    return f"{sha} (com alterações locais)" if sujo else sha
+
+
 def _percentil(valores: list[float], q: float) -> float:
     ordem = sorted(valores)
     return ordem[min(len(ordem) - 1, int(round(q * (len(ordem) - 1))))]
@@ -239,7 +268,7 @@ def executar(semente: int = 42) -> dict[str, Any]:
     lat_arq.parent.mkdir(parents=True, exist_ok=True)
     lat_arq.write_text("")
     est = gerador.Estado(random.Random(semente))
-    rel: dict[str, Any] = {"semente": semente,
+    rel: dict[str, Any] = {"semente": semente, "commit": _commit(),
                            "executado_em": datetime.now(UTC).isoformat(timespec="seconds"),
                            "cenarios": {}}
     reg = _Registro(pasta)
@@ -251,6 +280,8 @@ def executar(semente: int = 42) -> dict[str, Any]:
 
     # 1. normal, com o consumidor rodando junto
     proc = consumidor(pasta, metricas=lat_arq)
+    # a latência só começa a contar com o consumidor pronto: snapshot (1.200 linhas) já gravado
+    _esperar(lambda: _gravados(pasta) >= 1200, 180, "snapshot gravado pelo consumidor")
     with psycopg.connect(gerador.DSN) as pg:
         feito = gerador.mudancas(pg, est, 3000)
         bordas = gerador.mesma_linha_na_mesma_transacao(pg, est, 40)
@@ -262,7 +293,8 @@ def executar(semente: int = 42) -> dict[str, Any]:
         return {"n": len(v), "p50": _percentil(v, .5), "p95": _percentil(v, .95), "max": max(v)}
 
     reg.fechar("1_normal", {"mudancas": feito, "casos_de_borda": bordas,
-                            "latencia_ms": _lat("ms"), "latencia_delta_ms": _lat("ms_delta")})
+                            "latencia_kafka_ms": _lat("ms_kafka"), "latencia_ms": _lat("ms"),
+                            "latencia_delta_ms": _lat("ms_delta")})
 
     # 2. queda do consumidor entre gravar e confirmar
     with psycopg.connect(gerador.DSN) as pg:
@@ -302,10 +334,17 @@ def executar(semente: int = 42) -> dict[str, Any]:
 
     # 4. mensagens repetidas publicadas de novo no tópico
     n = repetir_mensagens(400)
-    fim_do_consumidor(consumidor(pasta))
-    reg.fechar("4_mensagem_repetida", {"copias_publicadas": n},
-               lambda novos: (n > 0 and novos == n,
-                              f"{n} cópias publicadas no tópico, {novos} descartadas no destino"))
+    _, fim4 = fim_do_consumidor(consumidor(pasta))
+    lidas_delta = int(fim4.get("merge_num_source_rows", 0))
+    mudou = (int(fim4.get("merge_num_target_rows_updated", -1))
+             + int(fim4.get("merge_num_target_rows_inserted", -1)))
+    reg.fechar("4_mensagem_repetida",
+               {"copias_publicadas": n, "delta_linhas_no_merge": lidas_delta,
+                "delta_linhas_alteradas": mudou},
+               lambda novos: (n > 0 and novos == n and lidas_delta > 0 and mudou == 0,
+                              f"{n} cópias publicadas no tópico, {novos} descartadas no log; no "
+                              f"Delta, o MERGE recebeu {lidas_delta} linhas e alterou {mudou} "
+                              f"(o predicado do LSN barrou todas)"))
 
     rel["cenarios"] = reg.cenarios
     rel["ok"] = all(c["ok"] for c in rel["cenarios"].values())

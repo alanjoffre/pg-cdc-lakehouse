@@ -53,6 +53,7 @@ def consumir(pasta: Path, bootstrap: str = "localhost:59094", grupo: str = "cdc-
     recebeu: list[bool] = []
     c.subscribe([TOPICOS], on_assign=lambda _c, parts: recebeu.append(bool(parts)))
     lotes = mensagens = reentregues = 0
+    merge = dict.fromkeys(delta.METRICAS, 0)
     inicio = time.monotonic()
     ultimo: float | None = None
     saida = metricas.open("a", encoding="utf-8") if metricas else None
@@ -63,7 +64,8 @@ def consumir(pasta: Path, bootstrap: str = "localhost:59094", grupo: str = "cdc-
                     ultimo = time.monotonic()
                 elif time.monotonic() - inicio > espera_particoes_s:
                     raise TimeoutError(f"{espera_particoes_s:.0f}s sem receber partições")
-            msgs = c.consume(num_messages=lote_max, timeout=1.0)
+            # 0,2 s: com pouca mensagem, o consume espera o prazo inteiro antes de devolver o lote
+            msgs = c.consume(num_messages=lote_max, timeout=0.2)
             boas: list[Message] = []
             for m in msgs:
                 erro = m.error()
@@ -83,25 +85,30 @@ def consumir(pasta: Path, bootstrap: str = "localhost:59094", grupo: str = "cdc-
             confirmar = []
             do_lote = []
             for (topico, particao), grupo_msgs in por_particao.items():
-                eventos = [e for _, m in grupo_msgs
-                           if (e := de_debezium(m.key(), m.value())) is not None]
+                pares = [(e, m.timestamp()[1]) for _, m in grupo_msgs
+                         if (e := de_debezium(m.key(), m.value())) is not None]
+                eventos = [e for e, _ in pares]
                 ini, fim = grupo_msgs[0][0], grupo_msgs[-1][0]
                 if (pasta / nome_arquivo(topico, particao, ini, fim)).exists():
                     reentregues += len(grupo_msgs)   # a mesma faixa já gravada voltou da fila
                 gravar_lote(pasta, eventos, topico, particao, ini, fim)
-                do_lote.append((eventos, time.time() * 1000))
+                do_lote.append((pares, time.time() * 1000))
                 confirmar.append(TopicPartition(topico, particao, fim + 1))
                 mensagens += len(grupo_msgs)
             if pasta_delta is not None:
-                delta.aplicar_lote(pasta_delta, (e for evs, _ in do_lote for e in evs))
+                res = delta.aplicar_lote(pasta_delta, (e for ps, _ in do_lote for e, _ in ps))
+                for k in merge:
+                    merge[k] += res[k]
             no_delta_ms = time.time() * 1000
             if saida:
-                for eventos, parquet_ms in do_lote:
-                    for e in eventos:
-                        if e.op != "r":   # snapshot não tem commit recente: fica fora da latência
-                            saida.write(json.dumps({"ms": round(parquet_ms - e.ts_ms, 1),
-                                                    "ms_delta": round(no_delta_ms - e.ts_ms, 1)})
-                                        + "\n")
+                for ps, parquet_ms in do_lote:
+                    for e, kafka_ms in ps:
+                        if e.op != "r":   # snapshot não é mudança recente: fica fora da latência
+                            saida.write(json.dumps({
+                                "ms_kafka": round(kafka_ms - e.ts_ms, 1),   # mudança → tópico
+                                "ms": round(parquet_ms - e.ts_ms, 1),       # mudança → Parquet
+                                "ms_delta": round(no_delta_ms - e.ts_ms, 1),  # mudança → Delta
+                            }) + "\n")
             lotes += 1
             if falhar_apos is not None and lotes >= falhar_apos:
                 if saida:
@@ -114,7 +121,8 @@ def consumir(pasta: Path, bootstrap: str = "localhost:59094", grupo: str = "cdc-
         if saida:
             saida.close()
         c.close()
-    return {"lotes": lotes, "mensagens": mensagens, "reentregues_mesma_faixa": reentregues}
+    return {"lotes": lotes, "mensagens": mensagens, "reentregues_mesma_faixa": reentregues,
+            **{f"merge_{k}": v for k, v in merge.items()}}
 
 
 def main() -> None:

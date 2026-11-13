@@ -9,7 +9,7 @@ e a tabela Delta Lake mantida por MERGE.
 
 | Cenário | Linhas origem × destino | Faltando, sobrando ou divergentes | Hash igual | Delta igual à origem | Repetidos descartados no cenário | Falha conferida | Resultado |
 |---|---|---|---|---|---|---|---|
-| Operação normal (snapshot + mudanças com o consumidor rodando) | clientes 200 × 200 · pedidos 1340 × 1340 | 0 | sim | sim | 0 | sim | ok |
+| Operação normal (snapshot + mudanças com o consumidor rodando) | clientes 200 × 200 · pedidos 1340 × 1340 | 0 | sim | sim | 0 | n/a | ok |
 | Queda do consumidor entre gravar e confirmar o offset | clientes 200 × 200 · pedidos 1439 × 1439 | 0 | sim | sim | 0 | sim | ok |
 | Queda do Debezium (SIGKILL) com a origem recebendo escrita | clientes 200 × 200 · pedidos 1614 × 1614 | 0 | sim | sim | 240 | sim | ok |
 | Mensagens repetidas publicadas de novo no tópico | clientes 200 × 200 · pedidos 1614 × 1614 | 0 | sim | sim | 400 | sim | ok |

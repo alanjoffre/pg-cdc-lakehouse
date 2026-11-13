@@ -34,6 +34,12 @@ def _falhas(c: dict[str, Any]) -> int:
     return sum(len(c[t][k]) for t in TABELAS for k in ("faltando", "sobrando", "divergentes"))
 
 
+def _conferida(c: dict[str, Any]) -> str:
+    if c.get("prova_da_falha") == "sem falha injetada":
+        return "n/a"
+    return _sim(c["falha_exercitada"])
+
+
 def _delta(c: dict[str, Any]) -> str:
     """Origem × tabela Delta: "sim" só se contagem, chaves, conteúdo e hash baterem."""
     if not all("delta" in c[t] for t in TABELAS):
@@ -46,7 +52,8 @@ def gerar_md(rel: dict[str, Any]) -> str:
     out = [
         "# Resultado dos cenários",
         "",
-        f"Execução: {rel.get('executado_em', '—')} · semente {rel['semente']} · "
+        f"Execução: {rel.get('executado_em', '—')} · commit {rel.get('commit', '—')} · "
+        f"semente {rel['semente']} · "
         f"resultado geral: **{'APROVADO' if rel['ok'] else 'REPROVADO'}**",
         "",
         "Gerado por `python -m cdc.cenarios` (prova completa em `cenarios.json`). Dado sintético,",
@@ -64,7 +71,7 @@ def gerar_md(rel: dict[str, Any]) -> str:
         out.append(
             f"| {TITULOS.get(nome, nome)} | {_linhas(c)} | {_falhas(c)} | {_sim(hash_ok)} "
             f"| {_delta(c)} "
-            f"| {c['repetidos_absorvidos_no_cenario']} | {_sim(c['falha_exercitada'])} "
+            f"| {c['repetidos_absorvidos_no_cenario']} | {_conferida(c)} "
             f"| {'ok' if c['ok'] else '**falhou**'} |")
     out += ["", "## Como cada falha foi conferida", ""]
     for nome, c in cen.items():
@@ -79,14 +86,18 @@ def gerar_md(rel: dict[str, Any]) -> str:
                 "por cenário: "
                 + ", ".join(f"{n.split('_', 1)[0]}: {c['colisoes_de_identidade']}"
                             for n, c in cen.items()) + "."]
-    if "latencia_ms" in normal:
-        lat = normal["latencia_ms"]
+    etapas = [("latencia_kafka_ms", "no tópico do Kafka"),
+              ("latencia_ms", "no arquivo Parquet gravado"),
+              ("latencia_delta_ms", "na tabela Delta (depois do MERGE)")]
+    medidas = [(rot, normal[k]) for k, rot in etapas if k in normal]
+    if medidas:
         out += ["", "## Latência (cenário 1)", "",
-                f"Do commit na origem ao arquivo gravado, {lat['n']} mudanças: "
-                f"p50 {lat['p50']:.0f} ms, p95 {lat['p95']:.0f} ms, máximo {lat['max']:.0f} ms.",
-                *([f"Até a tabela Delta (depois do MERGE): p50 {d['p50']:.0f} ms, "
-                   f"p95 {d['p95']:.0f} ms, máximo {d['max']:.0f} ms."]
-                  if (d := normal.get("latencia_delta_ms")) else []),
+                f"Da mudança na origem (`source.ts_ms`) até cada etapa, {medidas[0][1]['n']} "
+                "mudanças, medidas depois de o consumidor gravar o snapshot:", "",
+                "| Até | p50 | p95 | máximo |", "|---|---|---|---|",
+                *(f"| {rot} | {m['p50']:.0f} ms | {m['p95']:.0f} ms | {m['max']:.0f} ms |"
+                  for rot, m in medidas),
+                "",
                 "Medida numa máquina local com Docker e um broker: serve para comparar "
                 "execuções deste projeto, não é benchmark."]
     return "\n".join(out) + "\n"

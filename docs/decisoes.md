@@ -31,7 +31,8 @@ Cada decisão de desenho do case, com o motivo e o que fica de fora. Formato cur
     diferente. Esse número tem de ser 0 em todos os cenários.
 - **Limite:** ordenar a mesma chave pelo LSN do registro vale porque o PostgreSQL trava a linha
   até o commit, e duas transações não mudam a mesma linha ao mesmo tempo. Em produção, o campo
-  `source.sequence` do Debezium (LSN do commit + LSN do registro) é o desempate mais robusto.
+  `source.sequence` do Debezium (um par: o último LSN confirmado e o LSN atual) é um desempate
+  possível.
 
 ## D3. REPLICA IDENTITY FULL nas tabelas de origem
 
@@ -95,13 +96,13 @@ Cada decisão de desenho do case, com o motivo e o que fica de fora. Formato cur
   3. delete lógico: o `op='d'` fica na tabela com `apagado = true` e o LSN dele.
 - **Prova:** testes para reaplicar o mesmo lote, evento velho depois do delete, duas mudanças
   da mesma chave no lote, apagar e reinserir o mesmo id e lotes em ordem invertida. Sem o
-  dedup do lote, uma tabela nova recebeu a mesma chave 3 vezes, sem erro (conferido tirando a
-  regra). Nos 4 cenários, a tabela Delta é reconciliada contra a origem como o log.
+  dedup do lote, uma tabela nova recebe a mesma chave 3 vezes, sem erro (teste
+  `test_sem_o_dedup_do_lote_a_chave_duplica`). Nos 4 cenários, a tabela Delta é reconciliada contra a origem como o log.
 - **Consequência:** a queda do consumidor do cenário 2 acontece depois do MERGE e antes da
   confirmação, então a reentrega reaplica lotes já aplicados, e o predicado do LSN os ignora.
   Cada lote é um commit no `_delta_log`: em produção, compactar (`optimize`) e limpar
-  (`vacuum`) periodicamente. O MERGE acrescentou ~60 ms ao p50 da latência; o grosso dos ~4 s
-  vem antes do consumidor (a investigar).
+  (`vacuum`) periodicamente. O MERGE acrescentou ~60 ms ao p50 da latência; os ~4 s restantes não
+  foram decompostos (Debezium, Kafka e a janela de até 1 s do consumidor).
 - **Equivalente no Databricks:** `AUTO CDC` (antes `APPLY CHANGES INTO`) com `KEYS (id)`,
   `SEQUENCE BY lsn` e `APPLY AS DELETE WHEN op = 'd'`.
 - **Fora do case:** Iceberg (a mesma ideia com outro formato de tabela), Flink e Spark

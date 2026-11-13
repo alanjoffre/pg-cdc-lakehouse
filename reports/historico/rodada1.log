@@ -1,0 +1,38 @@
+sha=00acb6cf701f459816cab2a4add2fcf754c80006 (+ alterações locais) 13/11 14:38
+ Network pg-cdc-lakehouse_default Creating 
+ Network pg-cdc-lakehouse_default Creating 
+ Network pg-cdc-lakehouse_default Created 
+ Network pg-cdc-lakehouse_default Created 
+ Container pg-cdc-lakehouse-kafka-1 Creating 
+ Container pg-cdc-lakehouse-postgres-1 Creating 
+ Container pg-cdc-lakehouse-postgres-1 Created 
+ Container pg-cdc-lakehouse-kafka-1 Created 
+ Container pg-cdc-lakehouse-connect-1 Creating 
+ Container pg-cdc-lakehouse-connect-1 Created 
+ Container pg-cdc-lakehouse-kafka-1 Starting 
+ Container pg-cdc-lakehouse-postgres-1 Starting 
+ Container pg-cdc-lakehouse-kafka-1 Started 
+ Container pg-cdc-lakehouse-postgres-1 Started 
+ Container pg-cdc-lakehouse-postgres-1 Waiting 
+ Container pg-cdc-lakehouse-postgres-1 Healthy 
+ Container pg-cdc-lakehouse-connect-1 Starting 
+ Container pg-cdc-lakehouse-connect-1 Started 
+{"lotes": 9, "mensagens": 4280}
+%5|1794591615.094|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out LeaveGroupRequest in flight (after 5004ms, timeout #0): possibly held back by preceeding blocking JoinGroupRequest with timeout in 278049ms
+%4|1794591615.094|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+{"lotes": 0, "mensagens": 0}
+ Container pg-cdc-lakehouse-connect-1 Killing 
+ Container pg-cdc-lakehouse-connect-1 Killed 
+ Container pg-cdc-lakehouse-postgres-1 Waiting 
+ Container pg-cdc-lakehouse-postgres-1 Healthy 
+ Container pg-cdc-lakehouse-connect-1 Starting 
+ Container pg-cdc-lakehouse-connect-1 Started 
+{"lotes": 6, "mensagens": 2840}
+{"lotes": 1, "mensagens": 400}
+1_normal                 ok=True  gravados=4280  repetidos_no_cenario=0  colisoes=0
+2_queda_consumidor       ok=False  gravados=4780  repetidos_no_cenario=0  colisoes=0
+3_queda_conector         ok=True  gravados=7620  repetidos_no_cenario=840  colisoes=0
+4_mensagem_repetida      ok=True  gravados=8020  repetidos_no_cenario=400  colisoes=0
+latência (ms): {'n': 3080, 'p50': 3686.7, 'p95': 4590.9, 'max': 5885.1}
+REPROVADO
+saida=1

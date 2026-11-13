@@ -55,21 +55,29 @@ def _tabela_arrow(eventos: list[Evento]) -> pa.Table:
         for e in eventos], schema=ESQUEMA)
 
 
+METRICAS = ("num_source_rows", "num_target_rows_inserted", "num_target_rows_updated")
+
+
 def aplicar_lote(raiz: Path, eventos: Iterable[Evento]) -> dict[str, int]:
-    """Aplica o lote às tabelas Delta. Devolve, por tabela, quantas chaves o lote trouxe."""
+    """Aplica o lote às tabelas Delta. Devolve as métricas do MERGE somadas no lote.
+
+    `num_target_rows_updated` e `num_target_rows_inserted` mostram o efeito real: um lote só de
+    eventos repetidos ou atrasados tem de dar 0 nas duas.
+    """
     por_tabela: dict[str, list[Evento]] = {}
     for e in eventos:
         por_tabela.setdefault(e.tabela, []).append(e)
-    aplicadas: dict[str, int] = {}
+    soma = dict.fromkeys(METRICAS, 0)
     for tabela, evs in por_tabela.items():
         fonte = _tabela_arrow(_mais_novo_por_chave(evs))
         dt = DeltaTable.create(str(caminho(raiz, tabela)), schema=ESQUEMA, mode="ignore")
-        (dt.merge(fonte, predicate="t.chave = s.chave", source_alias="s", target_alias="t")
-           .when_matched_update_all(predicate="s.lsn > t.lsn")
-           .when_not_matched_insert_all()
-           .execute())
-        aplicadas[tabela] = fonte.num_rows
-    return aplicadas
+        res = (dt.merge(fonte, predicate="t.chave = s.chave", source_alias="s", target_alias="t")
+                 .when_matched_update_all(predicate="s.lsn > t.lsn")
+                 .when_not_matched_insert_all()
+                 .execute())
+        for k in METRICAS:
+            soma[k] += int(res.get(k, 0))
+    return soma
 
 
 def estado_atual(raiz: Path, tabela: str) -> list[dict[str, Any]]:

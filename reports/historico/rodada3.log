@@ -1,0 +1,46 @@
+sha=00acb6cf701f459816cab2a4add2fcf754c80006 (+ alterações locais) 13/11 14:46 rodada 3
+ Container pg-cdc-lakehouse-connect-1 Stopping 
+ Container pg-cdc-lakehouse-connect-1 Stopped 
+ Container pg-cdc-lakehouse-connect-1 Removing 
+ Container pg-cdc-lakehouse-connect-1 Removed 
+ Container pg-cdc-lakehouse-kafka-1 Stopping 
+ Container pg-cdc-lakehouse-postgres-1 Stopping 
+ Container pg-cdc-lakehouse-postgres-1 Stopped 
+ Container pg-cdc-lakehouse-postgres-1 Removing 
+ Container pg-cdc-lakehouse-postgres-1 Removed 
+ Container pg-cdc-lakehouse-kafka-1 Stopped 
+ Container pg-cdc-lakehouse-kafka-1 Removing 
+ Container pg-cdc-lakehouse-kafka-1 Removed 
+ Network pg-cdc-lakehouse_default Removing 
+ Network pg-cdc-lakehouse_default Removed 
+ Network pg-cdc-lakehouse_default Creating 
+ Network pg-cdc-lakehouse_default Creating 
+ Network pg-cdc-lakehouse_default Created 
+ Network pg-cdc-lakehouse_default Created 
+ Container pg-cdc-lakehouse-postgres-1 Creating 
+ Container pg-cdc-lakehouse-kafka-1 Creating 
+ Container pg-cdc-lakehouse-kafka-1 Created 
+ Container pg-cdc-lakehouse-postgres-1 Created 
+ Container pg-cdc-lakehouse-connect-1 Creating 
+ Container pg-cdc-lakehouse-connect-1 Created 
+ Container pg-cdc-lakehouse-kafka-1 Starting 
+ Container pg-cdc-lakehouse-postgres-1 Starting 
+ Container pg-cdc-lakehouse-kafka-1 Started 
+ Container pg-cdc-lakehouse-postgres-1 Started 
+ Container pg-cdc-lakehouse-postgres-1 Waiting 
+ Container pg-cdc-lakehouse-postgres-1 Healthy 
+ Container pg-cdc-lakehouse-connect-1 Starting 
+ Container pg-cdc-lakehouse-connect-1 Started 
+ Container pg-cdc-lakehouse-connect-1 Killing 
+ Container pg-cdc-lakehouse-connect-1 Killed 
+ Container pg-cdc-lakehouse-postgres-1 Waiting 
+ Container pg-cdc-lakehouse-postgres-1 Healthy 
+ Container pg-cdc-lakehouse-connect-1 Starting 
+ Container pg-cdc-lakehouse-connect-1 Started 
+1_normal                 ok=True  gravados=4280  repetidos_no_cenario=0  colisoes=0
+2_queda_consumidor       ok=True  gravados=5280  repetidos_no_cenario=0  colisoes=0
+3_queda_conector         ok=True  gravados=6820  repetidos_no_cenario=40  colisoes=0
+4_mensagem_repetida      ok=True  gravados=7220  repetidos_no_cenario=400  colisoes=0
+latência (ms): {'n': 3080, 'p50': 4201.8, 'p95': 5689.9, 'max': 6995.5}
+APROVADO
+saida=0

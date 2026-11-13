@@ -1,7 +1,7 @@
 # CI do pg-cdc-lakehouse.
 #   ci        → a cada push e PR: lint (ruff), tipos (mypy) e testes de unidade (pytest), sem Docker.
 #   cenarios  → sob demanda (Actions → ci → Run workflow): sobe PostgreSQL, Kafka e Debezium no
-#               Docker do runner, injeta as 4 falhas e reconcilia origem × destino (~10 min).
+#               Docker do runner, roda os 4 cenários (3 falhas e a operação normal) e reconcilia origem × destino (~10 min).
 name: ci
 
 on:
@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  UV_FROZEN: "1" # instala exatamente o uv.lock
+  UV_LOCKED: "1" # falha se o uv.lock não bater com o pyproject (em vez de instalar um lock velho)
 
 jobs:
   ci:
@@ -34,6 +34,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
+          python-version: "3.12"
       - run: uv sync --extra dev
       - run: uv run ruff check src tests
       - run: uv run mypy src
@@ -49,6 +50,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
+          python-version: "3.12"
       - run: uv sync
       - run: docker compose pull -q
       # Apaga o relatório versionado: o resumo mostra só o que ESTA execução gerou.
