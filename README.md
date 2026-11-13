@@ -184,7 +184,10 @@ docker compose down -v             # derruba e apaga o ambiente
 ```
 
 O selo do CI cobre lint, tipos e testes de unidade. Os cenários rodam sob demanda no GitHub
-(Actions → ci → *Run workflow*), com o relatório no resumo da execução. As execuções anteriores,
+(Actions → ci → *Run workflow*), com o relatório no resumo da execução. A 1ª execução no runner
+do GitHub foi aprovada nos 4 cenários
+([run de 13/11/2026](https://github.com/alanjoffre/pg-cdc-lakehouse/actions/runs/43485076698)).
+As execuções locais anteriores,
 inclusive as reprovadas, estão em [`reports/historico/`](reports/historico/).
 
 ## Estrutura
