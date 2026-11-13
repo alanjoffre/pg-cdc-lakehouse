@@ -3,7 +3,7 @@ name = "pg-cdc-lakehouse"
 version = "0.1.0"
 description = "CDC de PostgreSQL para Parquet e Delta Lake (Debezium + Apache Kafka), com o estado final conferido contra a origem em falhas injetadas"
 requires-python = ">=3.12"
-license = "Apache-2.0"
+license = "MIT"
 dependencies = ["duckdb>=1.4", "confluent-kafka>=2.6", "psycopg[binary]>=3.2",
                 "deltalake>=1.6", "pyarrow>=20"]
 

@@ -1,0 +1,61 @@
+# CI do pg-cdc-lakehouse.
+#   ci        → a cada push e PR: lint (ruff), tipos (mypy) e testes de unidade (pytest), sem Docker.
+#   cenarios  → sob demanda (Actions → ci → Run workflow): sobe PostgreSQL, Kafka e Debezium no
+#               Docker do runner, injeta as 4 falhas e reconcilia origem × destino (~10 min).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      cenarios:
+        description: "Rodar também os 4 cenários de ponta a ponta (Docker)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_FROZEN: "1" # instala exatamente o uv.lock
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run ruff check src tests
+      - run: uv run mypy src
+      - run: uv run pytest -q
+
+  cenarios:
+    if: github.event_name == 'workflow_dispatch' && inputs.cenarios
+    needs: [ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: docker compose pull -q
+      # Apaga o relatório versionado: o resumo mostra só o que ESTA execução gerou.
+      - run: rm -f reports/cenarios.json reports/cenarios.md
+      - run: uv run python -m cdc.cenarios
+      - name: Relatório no resumo da execução
+        if: always()
+        run: test -f reports/cenarios.md && cat reports/cenarios.md >> "$GITHUB_STEP_SUMMARY" || true
+      - if: always()
+        run: docker compose down -v
