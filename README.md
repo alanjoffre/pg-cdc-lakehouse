@@ -207,12 +207,10 @@ sql/              esquema da origem (REPLICA IDENTITY FULL e a publicação)
 docs/decisoes.md  registro de decisões (D1 a D9)
 ```
 
-## Como foi feito
+## Sobre os dados
 
-Desenvolvo com assistente de IA no fluxo de trabalho, para ganhar velocidade em código, testes e
-documentação. O que sustenta o resultado está versionado aqui: escopo, decisões registradas em
-[`docs/decisoes.md`](docs/decisoes.md), cenários executados e medições. Dado sintético (loja
-fictícia), sem código de empregador ou cliente.
+Dado sintético (loja fictícia), sem código de empregador ou cliente. Escopo, decisões
+([`docs/decisoes.md`](docs/decisoes.md)), cenários executados e medições estão versionados aqui.
 
 ## Licença
 
